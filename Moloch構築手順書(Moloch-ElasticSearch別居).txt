@@ -1,0 +1,126 @@
+Moloch検証 on VMware Fusion in Mac mini (OSX 10 server)
+
+[VMwareFusion設定]
+VMwareFusionのブリッジ設定でCentOS 2台の　ens**にIP割り振られている前提
+
+Moloch and ES on 2 machine
+##############################################
+# CentOS_moloch 
+http://ftp.jaist.ac.jp/pub/Linux/CentOS/7/isos/x86_64/CentOS-7-x86_64-Everything-1611.iso 
+
+CPU 4コア
+mem 8GB
+Disk 120 GB
+id: root
+pass: ********
+
+以下、「X.X.X.X」と*はご自身のものに置き換えてください
+
+##############################################
+日本語設定
+$/etc/vconsole.conf
+KEYMAP="jp106"
+ネットワーク設定
+ VMware Bridged
+$ ifdown ens**
+$ ifup ens**
+$ ip a
+IP = X.X.X.X
+
+$ yum install wget 
+$ wget https://files.molo.ch/builds/centos-7/moloch-0.18.3-1.x86_64.rpm 
+$ yum install perl-libwww-perl perl-JSON ethtool
+$ yum install net-tools java
+$ rpm -i moloch-0.18.3-1.x86_64.rpm 
+（または`yum install moloch-0.18.3-1.x86_64.rpm`）
+$ /data/moloch/bin/Configure
+          Semicolon ';' seperated list of interfaces to monitor [eth1] ens**;
+           Install Elasticsearch server locally for demo, must have at least 3G of memory, NOT recommended for production use (yes or no) [no] no
+           Elasticsearch server URL [http://localhost:9200] http://X.X.X.X:9200
+           S2S password   [hardening]
+
+念のためconfig確認しとく(キャプチャポートなどはここで変更しても良い)
+$ more /data/moloch/etc/config.ini
+
+必須ではないが今後のトラシューのため
+$ vi /etc/sysconfig/selinux
+ SELINUX=permissive
+
+$ /data/moloch/db/db.pl http://X.X.X.X:9200 init
+  b) 二回目以降はこちら　If this is an update to moloch package
+      /data/moloch/db/db.pl http://X.X.X.X:9200 upgrade
+　　　
+$ /data/moloch/bin/moloch_add_user.sh admin "Admin User" ******* --admin
+$ systemctl enable molochcapture.service
+$ systemctl enable molochviewer.service
+$ systemctl start molochcapture.service
+$ systemctl start molochviewer.service
+$ systemctl status molochcapture.service
+$ systemctl status molochviewer.service
+
+$ firewall-cmd --state
+$ firewall-cmd --zone=public --add-port=8005/tcp --permanent
+$ systemctl restart firewalld　
+$ firewall-cmd --list-all-zones
+ 9) Visit http://X.X.X.X:8005 with your favorite browser.
+      user: admin
+      password: *******
+
+moloch トラブルシュートはまずログを見る
+[root@moloch ~]# more /data/moloch/logs/viewer.log
+Express server listening on port 8005 in development mode
+-> OK
+[root@moloch ~]# more /data/moloch/logs/capture.log
+May 29 21:12:16 main.c:599 main(): THREAD 0x7fcae679c880
+May 29 21:12:16 reader-libpcap.c:230 reader_libpcap_init(): pcap open live failed! eth1: No such device exists (SIOCGIFHWADDR: No such device)
+-> こうなっていたらパケット取れていない。
+
+
+
+##############################################
+# CentOS_ES
+http://ftp.jaist.ac.jp/pub/Linux/CentOS/7/isos/x86_64/CentOS-7-x86_64-Everything-1611.iso 
+
+CPU 4コア
+mem 8GB
+Disk 120 GB
+id: root
+pass: ********
+
+以下、「Y.Y.Y.Y」と*はご自身のものに置き換えてください
+
+##############################################
+
+日本語設定
+$/etc/vconsole.conf
+KEYMAP="jp106"
+ネットワーク設定
+ VMware Bridged
+$ ifdown ens**
+$ ifup ens**
+$ ip a
+IP = Y.Y.Y.Y
+
+$ vi /etc/yum.repos.d/elasticsearch.repo
+[elasticsearch-2.x]
+name=Elasticsearch repository for 2.x packages
+baseurl=https://packages.elastic.co/elasticsearch/2.x/centos
+gpgcheck=1
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+$ yum install elasticsearch
+$ yum install java
+$ vi /etc/elasticsearch/elasticsearch.yml
+     ->    network host :  0.0.0.0   先頭の#は外す
+$ systemctl enable elasticsearch.service
+$ systemctl start elasticsearch.service
+
+$ firewall-cmd --state
+$ firewall-cmd --zone=public --add-port=9200/tcp —permanent
+$ systemctl restart firewalld 
+$ firewall-cmd --list-all-zones
+
+必須ではないが今後のトラシューのため
+$ vi /etc/sysconfig/selinux
+ SELINUX=permissive
+
