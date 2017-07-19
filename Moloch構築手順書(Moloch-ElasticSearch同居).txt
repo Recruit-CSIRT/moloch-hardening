@@ -1,0 +1,87 @@
+Moloch検証 on VMware Fusion in Mac mini (OSX 10 server)
+
+Moloch and ES on 1 machine
+##############################################
+# CentOS7_both
+http://ftp.jaist.ac.jp/pub/Linux/CentOS/7/isos/x86_64/CentOS-7-x86_64-Everything-1611.iso 
+
+CPU 4コア
+mem 8GB
+Disk 120 GB
+id: root
+pass: ********
+
+以下、「X.X.X.X」と*はご自身のものに置き換えてください
+
+##############################################
+日本語設定
+$/etc/vconsole.conf
+KEYMAP="jp106"
+ネットワーク設定
+ VMware Bridged
+$ ifdown ens**
+$ ifup ens**
+$ ip a
+ip = X.X.X.X
+$ yum install wget 
+$ wget https://files.molo.ch/builds/centos-7/moloch-0.18.3-1.x86_64.rpm 
+$ yum install perl-libwww-perl perl-JSON ethtool
+$ yum install net-tools java
+$ rpm -i moloch-0.18.3-1.x86_64.rpm 
+$ vi /etc/yum.repos.d/elasticsearch.repo
+[elasticsearch-2.x]
+name=Elasticsearch repository for 2.x packages
+baseurl=https://packages.elastic.co/elasticsearch/2.x/centos
+gpgcheck=1
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+$ yum install elasticsearch
+$ yum install java  # if not installed
+$ vi /etc/elasticsearch/elasticsearch.yml
+     ->    network host :  127.0.0.1   先頭の#は外す。
+$ systemctl enable elasticsearch.service
+$ systemctl start elasticsearch.service (すでに起動していて、やり直す時はrestart)
+$ systemctl status elasticsearch.service
+$ /data/moloch/bin/Configure
+Found interfaces: ens**;lo
+Semicolon ';' seperated list of interfaces to monitor [eth1] ens**;lo
+Install Elasticsearch server locally for demo, must have at least 3G of memory, NOT recommended for production use (yes or no) [no] no
+Elasticsearch server URL [http://localhost:9200] http://127.0.0.1:9200
+Password to encrypt S2S and other things [no-default] hardening
+Moloch - Creating configuration files...
+$ /data/moloch/db/db.pl http://127.0.0.1:9200 init
+$ /data/moloch/bin/moloch_add_user.sh admin "Admin User" ******** --admin
+$ systemctl start molochcapture.service
+$ systemctl start molochviewer.service
+$ systemctl status molochcapture.service
+$ systemctl status molochviewer.service
+$ firewall-cmd --state
+$ firewall-cmd --zone=public --add-port=8005/tcp --permanent
+$ systemctl restart firewalld
+$ firewall-cmd --list-all-zones
+インストール完了
+Viewer確認
+ 9) Visit http://X.X.X.X:8005 with your favorite browser.
+      user: admin
+      password: ******
+ログ確認
+[root@moloch ~]# more /data/moloch/logs/viewer.log
+[root@moloch ~]# more /data/moloch/logs/capture.log
+必須ではないが今後のトラシューのため
+$ vi /etc/sysconfig/selinux
+ SELINUX=permissive
+$ yum install tcpdump
+
+
+イーサネット追加
+$ shutdown -h
+VMwareからネットワークアダプタ2を追加
+$ifdown ens**
+$ifup ens**
+($nmtui で操作可能)
+
+
+補足：
+確認された落とし穴
+・Moloch DemoのESは起動しない不具合あり(2017.06 ver 0.18.3)
+・キャプチャインターフェースにloを含むとmolochcaptureが起動しない(2017.06 ver 0.18.3)
